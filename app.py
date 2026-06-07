@@ -4,6 +4,8 @@ import plotly.graph_objects as go
 
 from database import criar_banco, get_conn
 
+st.set_page_config(page_title="Banco de Questões", layout="wide")
+
 
 # ===================================================
 # LOGIN
@@ -44,8 +46,6 @@ if "db_iniciado" not in st.session_state:
 # ===================================================
 # CONFIGURAÇÃO DA PÁGINA
 # ===================================================
-
-st.set_page_config(page_title="Banco de Questões", layout="wide")
 
 st.title("📚 Banco de Questões Para Seu Futuro Cargo")
 
