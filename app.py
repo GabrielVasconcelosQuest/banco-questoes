@@ -52,6 +52,7 @@ st.title("📚 Banco de Questões Para Seu Futuro Cargo")
 menu_opcoes = [
     "Cadastrar Questão",
     "Importar por Excel",
+    "Gerenciar Questões",
     "Resolver Questões",
     "Revisar Questões",
     "Estatísticas",
@@ -94,9 +95,7 @@ def get_todas_tags():
 
 
 def atualizar_estatisticas_tag(cursor, tags, novo_status):
-    """Atualiza acertos/erros por tag no ciclo atual.
-    Chamada apenas quando a questão estava 'Não respondida'."""
-
+    """Atualiza acertos/erros por tag no ciclo atual."""
     for tag in tags.splitlines():
         tag = tag.strip()
         if not tag:
@@ -150,6 +149,52 @@ def cor_dominio(pct):
     return "#1abc9c"
 
 
+def editor_com_negrito(label, value="", key=""):
+    """
+    Editor de texto com suporte a negrito usando marcação **texto**.
+    Exibe uma barra de ferramentas com botão de negrito e um text_area.
+    Retorna o texto com marcação **...**  que é salvo no banco.
+    """
+    st.markdown(f"**{label}**")
+
+    col_btn, col_info = st.columns([1, 5])
+    with col_btn:
+        st.markdown(
+            """
+            <div style='margin-bottom:4px;'>
+                <span style='background:#f0f0f0; border:1px solid #ccc;
+                             border-radius:4px; padding:2px 10px;
+                             font-weight:bold; font-size:14px;'>B</span>
+                <span style='font-size:12px; color:#888; margin-left:6px;'>
+                    Selecione o texto e envolva com **texto**
+                </span>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+    texto = st.text_area(
+        label,
+        value=value,
+        key=key,
+        label_visibility="collapsed",
+        help="Use **texto** para negrito. Ex: **importante**"
+    )
+    return texto
+
+
+def renderizar_com_negrito(texto):
+    """
+    Renderiza texto com suporte a marcação **negrito** usando st.markdown.
+    Preserva quebras de linha.
+    """
+    if not texto:
+        return
+    # Converte quebras de linha em markdown
+    texto_md = texto.replace("\n", "  \n")
+    st.markdown(texto_md)
+
+
 # ===================================================
 # CADASTRAR QUESTÃO
 # ===================================================
@@ -158,32 +203,49 @@ if menu == "Cadastrar Questão":
 
     st.header("Nova Questão")
 
-    materia    = st.text_input("Matéria")
-    assunto    = st.text_input("Assunto")
-    banca      = st.text_input("Banca")
-    cargo      = st.text_input("Cargo")
-    ano        = st.number_input("Ano", min_value=2000, max_value=2100, value=2025)
+    # Inicializa contadores de reset
+    if "cadastro_reset" not in st.session_state:
+        st.session_state["cadastro_reset"] = 0
+
+    reset_key = st.session_state["cadastro_reset"]
+
+    materia    = st.text_input("Matéria",    key=f"cad_materia_{reset_key}")
+    assunto    = st.text_input("Assunto",    key=f"cad_assunto_{reset_key}")
+    banca      = st.text_input("Banca",      key=f"cad_banca_{reset_key}")
+    cargo      = st.text_input("Cargo",      key=f"cad_cargo_{reset_key}")
+    ano        = st.number_input("Ano", min_value=2000, max_value=2100, value=2025,
+                                 key=f"cad_ano_{reset_key}")
     dificuldade = st.selectbox("Dificuldade",
-        ["Muito Fácil", "Fácil", "Média", "Difícil", "Muito Difícil", "Pegadinha"])
-    tags       = st.text_area("Tags (uma por linha)", height=120)
-    questao    = st.text_area("Questão")
-    gabarito   = st.selectbox("Gabarito", ["Certo", "Errado"])
-    comentario = st.text_area("Comentário")
+        ["Muito Fácil", "Fácil", "Média", "Difícil", "Muito Difícil", "Pegadinha"],
+        key=f"cad_dif_{reset_key}")
+    tags       = st.text_area("Tags (uma por linha)", height=120,
+                              key=f"cad_tags_{reset_key}")
+
+    questao    = editor_com_negrito("Questão", key=f"cad_questao_{reset_key}")
+    gabarito   = st.selectbox("Gabarito", ["Certo", "Errado"],
+                              key=f"cad_gab_{reset_key}")
+    comentario = editor_com_negrito("Comentário", key=f"cad_coment_{reset_key}")
 
     if st.button("Salvar"):
-        conn   = get_conn()
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO questoes
-            (materia, assunto, banca, cargo, ano, dificuldade,
-             tags, questao, gabarito, comentario, observacoes, status)
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-        """, (materia, assunto, banca, cargo, ano, dificuldade,
-              tags, questao, gabarito, comentario, "", "Não respondida"))
-        conn.commit()
-        cursor.close()
-        conn.close()
-        st.success("Questão salva com sucesso!")
+        if not questao.strip():
+            st.warning("O campo Questão não pode estar vazio.")
+        else:
+            conn   = get_conn()
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO questoes
+                (materia, assunto, banca, cargo, ano, dificuldade,
+                 tags, questao, gabarito, comentario, observacoes, status)
+                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            """, (materia, assunto, banca, cargo, ano, dificuldade,
+                  tags, questao, gabarito, comentario, "", "Não respondida"))
+            conn.commit()
+            cursor.close()
+            conn.close()
+            st.success("✅ Questão salva com sucesso!")
+            # Reseta o formulário incrementando a chave
+            st.session_state["cadastro_reset"] += 1
+            st.rerun()
 
 
 # ===================================================
@@ -204,6 +266,7 @@ elif menu == "Importar por Excel":
 - **gabarito**: Certo / Errado
 - **tags**: separe com ponto e vírgula (`;`)
 - A primeira linha deve ser o cabeçalho
+- Use `**texto**` no campo questao/comentario para negrito
     """)
 
     arquivo = st.file_uploader("Selecione o arquivo Excel (.xlsx)", type=["xlsx"])
@@ -301,6 +364,175 @@ elif menu == "Importar por Excel":
 
 
 # ===================================================
+# GERENCIAR QUESTÕES
+# ===================================================
+
+elif menu == "Gerenciar Questões":
+
+    st.header("⚙️ Gerenciar Questões")
+
+    # --- FILTROS DE BUSCA ---
+    with st.expander("🔍 Filtros de Busca", expanded=True):
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            gq_materia = st.text_input("Matéria", key="gq_materia")
+            gq_banca   = st.text_input("Banca",   key="gq_banca")
+        with col2:
+            gq_cargo   = st.text_input("Cargo",   key="gq_cargo")
+            gq_ano     = st.text_input("Ano",     key="gq_ano")
+        with col3:
+            gq_dif     = st.selectbox("Dificuldade",
+                ["","Muito Fácil","Fácil","Média","Difícil","Muito Difícil","Pegadinha"],
+                key="gq_dif")
+            gq_status  = st.selectbox("Status",
+                ["","Não respondida","Acertada","Errada"], key="gq_status")
+
+        gq_texto = st.text_input("Buscar no texto da questão", key="gq_texto")
+
+        if st.button("🔍 Buscar"):
+            sql, params = "SELECT id, materia, assunto, banca, cargo, ano, dificuldade, questao, gabarito, status, dominio FROM questoes WHERE 1=1", []
+            if gq_materia: sql += " AND materia ILIKE %s"; params.append(f"%{gq_materia}%")
+            if gq_banca:   sql += " AND banca ILIKE %s";   params.append(f"%{gq_banca}%")
+            if gq_cargo:   sql += " AND cargo ILIKE %s";   params.append(f"%{gq_cargo}%")
+            if gq_ano:     sql += " AND ano = %s";         params.append(gq_ano)
+            if gq_dif:     sql += " AND dificuldade = %s"; params.append(gq_dif)
+            if gq_status:  sql += " AND status = %s";      params.append(gq_status)
+            if gq_texto:   sql += " AND questao ILIKE %s"; params.append(f"%{gq_texto}%")
+            sql += " ORDER BY id DESC"
+
+            conn   = get_conn()
+            cursor = conn.cursor()
+            cursor.execute(sql, params)
+            st.session_state["gq_resultados"] = cursor.fetchall()
+            cursor.close()
+            conn.close()
+
+    # --- LISTAGEM ---
+    if "gq_resultados" in st.session_state:
+        resultados = st.session_state["gq_resultados"]
+
+        if not resultados:
+            st.warning("Nenhuma questão encontrada.")
+        else:
+            st.success(f"{len(resultados)} questão(ões) encontrada(s).")
+
+            # Se está editando uma questão específica
+            if "gq_editando_id" in st.session_state:
+                qid = st.session_state["gq_editando_id"]
+
+                conn   = get_conn()
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM questoes WHERE id = %s", (qid,))
+                q = cursor.fetchone()
+                cursor.close()
+                conn.close()
+
+                if q:
+                    st.divider()
+                    st.subheader(f"✏️ Editando Questão #{q[0]}")
+
+                    dif_opcoes = ["Muito Fácil","Fácil","Média","Difícil","Muito Difícil","Pegadinha"]
+                    gab_opcoes = ["Certo","Errado"]
+
+                    e_materia    = st.text_input("Matéria",  value=q[1] or "", key="ed_materia")
+                    e_assunto    = st.text_input("Assunto",  value=q[2] or "", key="ed_assunto")
+                    e_banca      = st.text_input("Banca",    value=q[3] or "", key="ed_banca")
+                    e_cargo      = st.text_input("Cargo",    value=q[4] or "", key="ed_cargo")
+                    e_ano        = st.number_input("Ano", min_value=2000, max_value=2100,
+                                                   value=int(q[5] or 2025), key="ed_ano")
+                    e_dif        = st.selectbox("Dificuldade", dif_opcoes,
+                                                index=dif_opcoes.index(q[6]) if q[6] in dif_opcoes else 2,
+                                                key="ed_dif")
+                    e_tags       = st.text_area("Tags (uma por linha)", value=q[7] or "",
+                                                height=100, key="ed_tags")
+
+                    e_questao    = editor_com_negrito("Questão",    value=q[8]  or "", key="ed_questao")
+                    e_gab        = st.selectbox("Gabarito", gab_opcoes,
+                                                index=gab_opcoes.index(q[9]) if q[9] in gab_opcoes else 0,
+                                                key="ed_gab")
+                    e_comentario = editor_com_negrito("Comentário", value=q[10] or "", key="ed_coment")
+                    e_obs        = st.text_area("Observações", value=q[11] or "",
+                                               height=80, key="ed_obs")
+
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button("💾 Salvar Alterações"):
+                            conn   = get_conn()
+                            cursor = conn.cursor()
+                            cursor.execute("""
+                                UPDATE questoes SET
+                                    materia=%s, assunto=%s, banca=%s, cargo=%s,
+                                    ano=%s, dificuldade=%s, tags=%s, questao=%s,
+                                    gabarito=%s, comentario=%s, observacoes=%s
+                                WHERE id=%s
+                            """, (e_materia, e_assunto, e_banca, e_cargo,
+                                  e_ano, e_dif, e_tags, e_questao,
+                                  e_gab, e_comentario, e_obs, qid))
+                            conn.commit()
+                            cursor.close()
+                            conn.close()
+                            st.success("✅ Questão atualizada com sucesso!")
+                            del st.session_state["gq_editando_id"]
+                            # Recarrega resultados
+                            del st.session_state["gq_resultados"]
+                            st.rerun()
+                    with col2:
+                        if st.button("❌ Cancelar Edição"):
+                            del st.session_state["gq_editando_id"]
+                            st.rerun()
+
+            else:
+                # Exibe a lista de questões
+                for q in resultados:
+                    qid, materia, assunto, banca, cargo, ano, dif, texto, gab, status, dominio = q
+                    preview = (texto or "")[:120] + ("..." if len(texto or "") > 120 else "")
+
+                    with st.container():
+                        col_info, col_edit, col_del = st.columns([7, 1, 1])
+
+                        with col_info:
+                            st.markdown(
+                                f"**#{qid}** — {materia or '—'} | {banca or '—'} "
+                                f"| {cargo or '—'} | {ano} | {dif or '—'}  \n"
+                                f"*Status:* {status or '—'} | *Domínio:* {dominio or '—'}  \n"
+                                f"{preview}"
+                            )
+
+                        with col_edit:
+                            if st.button("✏️", key=f"edit_{qid}", help="Editar questão"):
+                                st.session_state["gq_editando_id"] = qid
+                                st.rerun()
+
+                        with col_del:
+                            if st.button("🗑️", key=f"del_{qid}", help="Excluir questão"):
+                                st.session_state[f"confirm_del_{qid}"] = True
+                                st.rerun()
+
+                        # Confirmação de exclusão
+                        if st.session_state.get(f"confirm_del_{qid}"):
+                            st.warning(f"⚠️ Confirma a exclusão da questão #{qid}?")
+                            c1, c2 = st.columns(2)
+                            with c1:
+                                if st.button("✅ Sim, excluir", key=f"conf_sim_{qid}"):
+                                    conn   = get_conn()
+                                    cursor = conn.cursor()
+                                    cursor.execute("DELETE FROM questoes WHERE id = %s", (qid,))
+                                    conn.commit()
+                                    cursor.close()
+                                    conn.close()
+                                    del st.session_state[f"confirm_del_{qid}"]
+                                    del st.session_state["gq_resultados"]
+                                    st.success(f"Questão #{qid} excluída.")
+                                    st.rerun()
+                            with c2:
+                                if st.button("❌ Cancelar", key=f"conf_nao_{qid}"):
+                                    del st.session_state[f"confirm_del_{qid}"]
+                                    st.rerun()
+
+                        st.divider()
+
+
+# ===================================================
 # RESOLVER QUESTÕES
 # ===================================================
 
@@ -373,7 +605,7 @@ elif menu == "Resolver Questões":
         dominio_atual = r[13] if len(r) > 13 else ""
 
         st.divider()
-        st.write(questao)
+        renderizar_com_negrito(questao)
 
         resposta = st.radio("Sua resposta", ["Certo","Errado"], index=None)
 
@@ -389,7 +621,6 @@ elif menu == "Resolver Questões":
             conn   = get_conn()
             cursor = conn.cursor()
 
-            # Só conta estatística se estava "Não respondida"
             cursor.execute("SELECT status FROM questoes WHERE id = %s", (questao_id,))
             status_atual = (cursor.fetchone() or ["Não respondida"])[0]
 
@@ -436,7 +667,7 @@ elif menu == "Resolver Questões":
 
         if st.session_state.get("mostrar_comentario"):
             st.subheader("Comentário")
-            st.write(comentario)
+            renderizar_com_negrito(comentario)
 
         if st.session_state.get("mostrar_obs"):
             obs = st.text_area("Minhas Observações", value=observacoes)
@@ -543,7 +774,7 @@ elif menu == "Revisar Questões":
         dominio_atual = q[13] if len(q) > 13 else ""
 
         st.divider()
-        st.write(texto)
+        renderizar_com_negrito(texto)
 
         resposta = st.radio("Sua resposta", ["Certo","Errado"],
                             index=None, key=f"resp_{questao_id}")
@@ -560,7 +791,6 @@ elif menu == "Revisar Questões":
             conn   = get_conn()
             cursor = conn.cursor()
 
-            # Só conta estatística se estava "Não respondida"
             cursor.execute("SELECT status FROM questoes WHERE id = %s", (questao_id,))
             status_atual = (cursor.fetchone() or ["Não respondida"])[0]
 
@@ -611,7 +841,7 @@ elif menu == "Revisar Questões":
 
         if st.session_state.get("mostrar_comentario_rev"):
             st.subheader("Comentário")
-            st.write(comentario)
+            renderizar_com_negrito(comentario)
 
         if st.session_state.get("mostrar_obs_rev"):
             obs = st.text_area("Minhas Observações", value=observacoes,
@@ -784,7 +1014,6 @@ elif menu == "Dashboard":
         tags_labels = [d["tag"] for d in dados]
         pcts        = [d["pct"] for d in dados]
 
-        # Gráfico % acerto
         st.subheader("% de Acerto por Tag (ciclo mais recente)")
         fig = go.Figure()
         fig.add_trace(go.Bar(
@@ -802,7 +1031,6 @@ elif menu == "Dashboard":
                           height=420, margin=dict(t=40, b=60))
         st.plotly_chart(fig, use_container_width=True)
 
-        # Gráfico acertos vs erros
         st.subheader("Acertos vs Erros por Tag")
         fig2 = go.Figure()
         fig2.add_trace(go.Bar(name="Acertos", x=tags_labels,
@@ -816,7 +1044,6 @@ elif menu == "Dashboard":
                            height=380, margin=dict(t=40, b=60))
         st.plotly_chart(fig2, use_container_width=True)
 
-        # Tabela resumo
         st.subheader("Resumo por Tag")
         st.markdown("| Tag | Ciclo | Total no Banco | Respondidas | Acertos | Erros | % Acerto | Domínio |")
         st.markdown("|-----|-------|---------------|-------------|---------|-------|----------|---------|")
