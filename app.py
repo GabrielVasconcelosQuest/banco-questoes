@@ -152,33 +152,13 @@ def cor_dominio(pct):
 def editor_com_negrito(label, value="", key=""):
     """
     Editor de texto com suporte a negrito usando marcação **texto**.
-    Exibe uma barra de ferramentas com botão de negrito e um text_area.
     Retorna o texto com marcação **...**  que é salvo no banco.
     """
-    st.markdown(f"**{label}**")
-
-    col_btn, col_info = st.columns([1, 5])
-    with col_btn:
-        st.markdown(
-            """
-            <div style='margin-bottom:4px;'>
-                <span style='background:#f0f0f0; border:1px solid #ccc;
-                             border-radius:4px; padding:2px 10px;
-                             font-weight:bold; font-size:14px;'>B</span>
-                <span style='font-size:12px; color:#888; margin-left:6px;'>
-                    Selecione o texto e envolva com **texto**
-                </span>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
     texto = st.text_area(
         label,
         value=value,
         key=key,
-        label_visibility="collapsed",
-        help="Use **texto** para negrito. Ex: **importante**"
+        help="✏️ Para negrito: envolva o trecho com **duplo asterisco**. Ex: **palavra importante**"
     )
     return texto
 
